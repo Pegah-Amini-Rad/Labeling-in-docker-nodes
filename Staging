@@ -1,0 +1,94 @@
+# 
+
+1. docker node ls
+2. docker node update --label-add key=staging server1
+3. docker node update --label-add key=production server2
+
+```docker
+docker node ls -q | xargs docker node inspect \
+  -f '{{ .ID }} [{{ .Description.Hostname }}]: {{ .Spec.Labels }}'
+```
+
+4. git clone `https://github.com/dockersamples/example-voting-app.git`
+5. cd `example-voting-app`
+6. vi docker-stack.yml
+
+```docker
+version: "3.9"
+services:
+
+  redis:
+    image: redis:alpine
+    networks:
+      - frontend
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.key== staging
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.key== staging
+
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - backend
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.key== staging
+
+  vote:
+    image: dockersamples/examplevotingapp_vote
+    ports:
+      - 8080:80
+    networks:
+      - frontend
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.key== staging
+  result:
+    image: dockersamples/examplevotingapp_result
+    ports:
+      - 8081:80
+    networks:
+      - backend
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.key== staging
+
+  worker:
+    image: dockersamples/examplevotingapp_worker
+    networks:
+      - frontend
+      - backend
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.key== staging
+
+networks:
+  frontend:
+  backend:
+
+volumes:
+  db-data:
+
+```
+
+7 `docker stack deploy --compose-file docker-stack.yml voting-app`-staging
